@@ -2,53 +2,58 @@ import { AppDispatch, RootState } from "../store/store";
 import { fetchTransactions } from "../store/transactionsSlice";
 import FilterBar from "./FilterBar";
 import Pagination from "./Pagination";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 
 const TransactionsTable = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const { data, loading, error, filters, currentPage, itemsPerPage } = useSelector(
-    (state: RootState) => state.transactions,
-  );
+  const { data, loading, error } = useSelector((state: RootState) => state.transactions);
 
+  const [filter, setFilterLocal] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // Fetch inicial y cada vez que cambie filtro/página
   useEffect(() => {
-    dispatch(fetchTransactions());
-  }, [dispatch]);
+    const offset = (currentPage - 1) * itemsPerPage;
+    dispatch(fetchTransactions({ filter, limit: itemsPerPage, offset }));
+  }, [dispatch, filter, currentPage]);
 
-  const filtered = data.filter((t) => t.codOper.toLowerCase().includes(filters.search.toLowerCase()));
+  // Filtrado adicional en cliente
+  const filteredData = data.filter((tx) => tx.codOper.toLowerCase().includes(filter.toLowerCase()));
 
-  const start = (currentPage - 1) * itemsPerPage;
-  const paginated = filtered.slice(start, start + itemsPerPage);
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
 
-  if (loading) return <p>Cargando...</p>;
+  if (loading) return <p>Cargando transacciones...</p>;
   if (error) return <p>Error: {error}</p>;
 
   return (
     <div>
-      <FilterBar />
-      <table className="mt-4 w-full border-collapse">
+      <FilterBar filter={filter} setFilter={setFilterLocal} setCurrentPage={setCurrentPage} />
+      <table className="w-full border-collapse border border-gray-400">
         <thead>
-          <tr className="bg-gray-200">
-            <th className="border p-2">ID</th>
-            <th className="border p-2">Código</th>
-            <th className="border p-2">Fecha</th>
-            <th className="border p-2">Monto</th>
-            <th className="border p-2">Estado</th>
+          <tr>
+            <th className="border p-1">Código</th>
+            <th className="border p-1">Monto</th>
+            <th className="border p-1">Estado</th>
+            <th className="border p-1">Método</th>
+            <th className="border p-1">Fecha</th>
           </tr>
         </thead>
         <tbody>
-          {paginated.map((t) => (
-            <tr key={t.id}>
-              <td className="border p-2">{t.id}</td>
-              <td className="border p-2">{t.codOper}</td>
-              <td className="border p-2">{t.fecha}</td>
-              <td className="border p-2">${t.monto}</td>
-              <td className="border p-2">{t.estado}</td>
+          {filteredData.map((tx: any) => (
+            <tr key={tx.codOper}>
+              <td className="border p-1">{tx.codOper}</td>
+              <td className="border p-1">{tx.amount}</td>
+              <td className="border p-1">{tx.status}</td>
+              <td className="border p-1">{tx.payment_method}</td>
+              <td className="border p-1">{new Date(tx.created_at).toLocaleString()}</td>
             </tr>
           ))}
         </tbody>
       </table>
-      <Pagination />
+
+      <Pagination totalPages={totalPages} currentPage={currentPage} setCurrentPage={setCurrentPage} />
     </div>
   );
 };

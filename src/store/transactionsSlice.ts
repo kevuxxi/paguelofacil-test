@@ -1,52 +1,51 @@
-import { Transaction } from "../types/Transaction";
+import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 
-import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
-
-interface Filters {
-  search: string;
+// Parámetros opcionales para filtrar la API
+interface FetchParams {
+  filter?: string;
+  limit?: number;
+  offset?: number;
 }
 
-interface TransactionsState {
-  data: Transaction[];
-  loading: boolean;
-  error: string | null;
-  filters: Filters;
-  currentPage: number;
-  itemsPerPage: number;
-}
+export const fetchTransactions = createAsyncThunk(
+  "transactions/fetchTransactions",
+  async (params: FetchParams = {}, { rejectWithValue }) => {
+    try {
+      const { filter = "", limit = 50, offset = 0 } = params;
 
-const initialState: TransactionsState = {
-  data: [],
-  loading: false,
-  error: null,
-  filters: { search: "" },
-  currentPage: 1,
-  itemsPerPage: 5,
-};
+      const url = `${import.meta.env.VITE_API_URL}?filter=${filter}&limit=${limit}&offset=${offset}`;
 
-export const fetchTransactions = createAsyncThunk("transactions/fetchTransactions", async () => {
-  const res = await fetch("https://sandbox.paguelofacil.com/api/transacciones");
-  if (!res.ok) throw new Error("Error al cargar transacciones");
-  const data: Transaction[] = await res.json();
-  return data;
-});
+      const response = await fetch(url, {
+        headers: {
+          Authorization: import.meta.env.VITE_API_TOKEN,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const result = await response.json();
+      console.log("RESULT COMPLETO:", result);
+      console.log("ARRAY REAL DE TRANSACCIONES:", result?.data);
+
+      return Array.isArray(result?.data) ? result.data : [];
+    } catch (error) {
+      return rejectWithValue(error);
+    }
+  },
+);
 
 const transactionsSlice = createSlice({
   name: "transactions",
-  initialState,
-  reducers: {
-    setFilter: (state, action: PayloadAction<string>) => {
-      state.filters.search = action.payload;
-      state.currentPage = 1;
-    },
-    setPage: (state, action: PayloadAction<number>) => {
-      state.currentPage = action.payload;
-    },
+  initialState: {
+    data: [] as any[],
+    loading: false,
+    error: null as string | null,
   },
+  reducers: {},
   extraReducers: (builder) => {
     builder
       .addCase(fetchTransactions.pending, (state) => {
         state.loading = true;
+        state.error = null;
       })
       .addCase(fetchTransactions.fulfilled, (state, action) => {
         state.loading = false;
@@ -54,10 +53,9 @@ const transactionsSlice = createSlice({
       })
       .addCase(fetchTransactions.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.error.message || "Error desconocido";
+        state.error = action.payload as string;
       });
   },
 });
 
-export const { setFilter, setPage } = transactionsSlice.actions;
 export default transactionsSlice.reducer;

@@ -1,18 +1,20 @@
-import { AppDispatch, RootState } from "../store/store";
-import { setFilter } from "../store/transactionsSlice";
-import { useDispatch, useSelector } from "react-redux";
+interface FilterBarProps {
+  filter: string;
+  setFilter: (value: string) => void;
+  setCurrentPage: (page: number) => void;
+}
 
-const FilterBar = () => {
-  const dispatch = useDispatch<AppDispatch>();
-  const search = useSelector((state: RootState) => state.transactions.filters.search);
-
+const FilterBar = ({ filter, setFilter, setCurrentPage }: FilterBarProps) => {
   return (
     <input
       type="text"
       placeholder="Buscar por código..."
-      value={search}
-      onChange={(e) => dispatch(setFilter(e.target.value))}
-      className="rounded border p-2"
+      value={filter}
+      onChange={(e) => {
+        setFilter(e.target.value);
+        setCurrentPage(1); // reset página
+      }}
+      className="mb-2 rounded border p-2"
     />
   );
 };
