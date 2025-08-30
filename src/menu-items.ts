@@ -19,6 +19,13 @@ export const leftMenuItems: MenuItem[] = [
     ],
   },
   {
+    id: "transactions",
+    icon: "NiCreditCard",
+    label: "Transactions",
+    color: "text-primary",
+    href: "/transactions",
+  },
+  {
     id: "single-menu",
     icon: "NiDocumentFull",
     label: "menu-single-menu",
