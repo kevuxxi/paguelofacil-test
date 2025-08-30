@@ -3,8 +3,10 @@ import "@/style/global.css";
 import "@fontsource/mulish/latin.css";
 import "@fontsource/urbanist/latin.css";
 
+import { store } from "./store/store";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { Provider } from "react-redux";
 
 import { LicenseInfo } from "@mui/x-license";
 
@@ -14,6 +16,8 @@ LicenseInfo.setLicenseKey(import.meta.env.VITE_MUIX_LICENSE_KEY || "");
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <Provider store={store}>
+      <App />
+    </Provider>
   </StrictMode>,
 );

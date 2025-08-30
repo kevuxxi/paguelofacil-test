@@ -1,3 +1,9 @@
+import TransactionsTable from "../../../components/TransactionsTable";
+
 export default function Page() {
-  return <div></div>;
+  return (
+    <div>
+      <TransactionsTable />
+    </div>
+  );
 }
