@@ -1,5 +1,3 @@
-import "dayjs/locale/es";
-
 import { AppDispatch, RootState } from "../store/store";
 import { fetchTransactions, setFilter, setOrderBy } from "../store/transactionsSlice";
 import dayjs, { Dayjs } from "dayjs";
@@ -11,7 +9,6 @@ import { DataGrid, GridCellParams, GridPaginationModel, GridSortModel } from "@m
 import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 
-// Hook de utilidad para debouncing
 const useDebounce = (value: string, delay: number) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
   useEffect(() => {
@@ -25,7 +22,6 @@ const useDebounce = (value: string, delay: number) => {
   return debouncedValue;
 };
 
-// ... (El resto del código de interfaces y sortOptions permanece igual) ...
 interface Transaction {
   idTransaction: number;
   merchantName: string;
@@ -104,9 +100,8 @@ const TransactionsTable = () => {
   const [startDate, setStartDate] = useState<Dayjs | null>(null);
   const [endDate, setEndDate] = useState<Dayjs | null>(null);
 
-  // Usar estado local para el input
   const [localFilter, setLocalFilter] = useState(filter);
-  const debouncedFilter = useDebounce(localFilter, 500); // Debounce de 500ms
+  const debouncedFilter = useDebounce(localFilter, 500); //
 
   const rows = useMemo(() => (Array.isArray(data) ? data : []), [data]);
   const sortModel: GridSortModel = useMemo(
@@ -184,7 +179,6 @@ const TransactionsTable = () => {
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
   }, []);
 
-  // Sincronizar el filtro local con Redux solo cuando se presiona Enter o el debounce termina
   useEffect(() => {
     if (debouncedFilter !== filter) {
       dispatch(setFilter(debouncedFilter));
@@ -205,7 +199,6 @@ const TransactionsTable = () => {
     dispatch(fetchTransactions(queryParams));
   }, [dispatch, filter, paginationModel, orderBy, amountRange, startDate, endDate]);
 
-  // Lógica de renderizado condicional
   if (error) {
     return (
       <Grid container spacing={2} justifyContent="center" alignItems="center">

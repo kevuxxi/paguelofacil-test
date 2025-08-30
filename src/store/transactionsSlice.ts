@@ -30,7 +30,6 @@ const initialState: TransactionsState = {
   orderBy: "dateTms",
 };
 
-// Función para construir la URL de la API de forma centralizada
 const buildApiUrl = (params: FetchParams): string => {
   const url = new URL(import.meta.env.VITE_API_URL);
   const queryParams = new URLSearchParams();
