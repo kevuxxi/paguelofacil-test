@@ -1,5 +1,3 @@
-import "dayjs/locale/es";
-
 import { Dayjs } from "dayjs";
 
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
@@ -19,8 +17,6 @@ interface TransactionsState {
   loading: boolean;
   error: string | null;
   filter: string;
-  currentPage: number;
-  itemsPerPage: number;
   total: number;
   orderBy: string;
 }
@@ -30,63 +26,52 @@ const initialState: TransactionsState = {
   loading: false,
   error: null,
   filter: "",
-  currentPage: 1,
-  itemsPerPage: 10,
-  total: 0,
+  total: 5000,
   orderBy: "dateTms",
+};
+
+// Función para construir la URL de la API de forma centralizada
+const buildApiUrl = (params: FetchParams): string => {
+  const url = new URL(import.meta.env.VITE_API_URL);
+  const queryParams = new URLSearchParams();
+
+  if (params.limit !== undefined) {
+    queryParams.append("limit", params.limit.toString());
+  }
+  if (params.offset !== undefined) {
+    queryParams.append("offset", params.offset.toString());
+  }
+  if (params.orderBy) {
+    queryParams.append("sort", params.orderBy);
+  }
+
+  const conditionalParamsArray = [];
+  if (params.filter) {
+    const isEmail = params.filter.includes("@");
+    const filterField = isEmail ? "email" : "codOper";
+    queryParams.append("filter", `${filterField}::${params.filter}`);
+  }
+  if (params.startDate && params.endDate) {
+    const formattedStartDate = params.startDate.format("YYYY-MM-DD");
+    const formattedEndDate = params.endDate.format("YYYY-MM-DD");
+    conditionalParamsArray.push(`dateTms%24bt${formattedStartDate}T00%3A00%3A00%3A%3A${formattedEndDate}T23%3A59%3A59`);
+  }
+  if (params.amountRange) {
+    const [min, max] = params.amountRange;
+    conditionalParamsArray.push(`amount%24bt${min}%3A%3A${max}`);
+  }
+  if (conditionalParamsArray.length > 0) {
+    queryParams.append("conditional", conditionalParamsArray.join("|"));
+  }
+
+  return `${url.toString()}?${queryParams.toString()}`;
 };
 
 export const fetchTransactions = createAsyncThunk(
   "transactions/fetchTransactions",
   async (params: FetchParams = {}, { rejectWithValue }) => {
     try {
-      const {
-        filter,
-        limit = initialState.itemsPerPage,
-        offset = (initialState.currentPage - 1) * initialState.itemsPerPage,
-        orderBy,
-        startDate,
-        endDate,
-        amountRange,
-      } = params;
-
-      const url = new URL(import.meta.env.VITE_API_URL);
-      const queryParams = new URLSearchParams();
-
-      queryParams.append("limit", limit.toString());
-      queryParams.append("offset", offset.toString());
-
-      if (orderBy) {
-        queryParams.append("sort", orderBy);
-      }
-
-      const conditionalParamsArray = [];
-
-      if (filter) {
-        const isEmail = filter.includes("@");
-        const filterField = isEmail ? "email" : "codOper";
-        queryParams.append("filter", `${filterField}::${filter}`);
-      }
-
-      if (startDate && endDate) {
-        const formattedStartDate = startDate.format("YYYY-MM-DD");
-        const formattedEndDate = endDate.format("YYYY-MM-DD");
-        conditionalParamsArray.push(
-          `dateTms%24bt${formattedStartDate}T00%3A00%3A00%3A%3A${formattedEndDate}T23%3A59%3A59`,
-        );
-      }
-
-      if (amountRange) {
-        const [min, max] = amountRange;
-        conditionalParamsArray.push(`amount%24bt${min}%3A%3A${max}`);
-      }
-
-      if (conditionalParamsArray.length > 0) {
-        queryParams.append("conditional", conditionalParamsArray.join("|"));
-      }
-
-      const fullUrl = `${url.toString()}?${queryParams.toString()}`;
-
+      const fullUrl = buildApiUrl(params);
       const response = await fetch(fullUrl, {
         headers: {
           Authorization: import.meta.env.VITE_API_TOKEN,
@@ -94,18 +79,19 @@ export const fetchTransactions = createAsyncThunk(
         },
       });
 
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.headerStatus?.description || "Error en la API");
+      if (!response.ok) {
+        const errorData = await response.json();
+        const errorMessage = errorData.headerStatus?.description || "Error en la API";
+        return rejectWithValue(errorMessage);
       }
 
+      const result = await response.json();
       return {
         data: Array.isArray(result.data) ? result.data : [],
-        total: result.total || 0,
+        total: result.total || initialState.total,
       };
-    } catch (error: any) {
-      return rejectWithValue(error.message);
+    } catch (error) {
+      return rejectWithValue((error as Error).message);
     }
   },
 );
@@ -116,18 +102,9 @@ const transactionsSlice = createSlice({
   reducers: {
     setFilter(state, action: PayloadAction<string>) {
       state.filter = action.payload;
-      state.currentPage = 1;
-    },
-    setPage(state, action: PayloadAction<number>) {
-      state.currentPage = action.payload;
     },
     setOrderBy(state, action: PayloadAction<string>) {
       state.orderBy = action.payload;
-      state.currentPage = 1;
-    },
-    setItemsPerPage(state, action: PayloadAction<number>) {
-      state.itemsPerPage = action.payload;
-      state.currentPage = 1;
     },
   },
   extraReducers: (builder) => {
@@ -148,5 +125,5 @@ const transactionsSlice = createSlice({
   },
 });
 
-export const { setFilter, setPage, setOrderBy, setItemsPerPage } = transactionsSlice.actions;
+export const { setFilter, setOrderBy } = transactionsSlice.actions;
 export default transactionsSlice.reducer;
