@@ -61,15 +61,23 @@ const TransactionsTable = () => {
   const columns = useMemo(
     () => [
       { field: "codOper", headerName: "Código", width: 180 },
-      { field: "amount", headerName: "Monto", width: 120 },
+      {
+        field: "amount",
+        headerName: "Monto",
+        width: 120,
+        valueGetter: (value: number) => {
+          return new Intl.NumberFormat("es-AR", {
+            style: "currency",
+            currency: "USD",
+          }).format(value);
+        },
+      },
       { field: "cardType", headerName: "Tipo de Tarjeta", width: 150 },
       { field: "displayCardNum", headerName: "Últimos 4 Dígitos", width: 150 },
       { field: "cardholderFullName", headerName: "Nombre Titular", width: 200 },
       { field: "email", headerName: "Email", width: 200 },
       { field: "address", headerName: "Dirección", width: 250 },
-      { field: "ipCountry", headerName: "País de IP", width: 120 },
       { field: "merchantName", headerName: "Nombre del Comercio", width: 200 },
-      { field: "messageSys", headerName: "Mensaje del Sistema", width: 250 },
       {
         field: "status",
         headerName: "Estado",
