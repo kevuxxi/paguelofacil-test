@@ -20,6 +20,7 @@ interface TransactionsState {
   filter: string;
   total: number;
   orderBy: string;
+  loadingCount: boolean;
 }
 
 const initialState: TransactionsState = {
@@ -27,21 +28,27 @@ const initialState: TransactionsState = {
   loading: false,
   error: null,
   filter: "",
-  total: 5000,
+  total: 0,
   orderBy: "dateTms",
+  loadingCount: false,
 };
 
-const buildApiUrl = (params: FetchParams): string => {
+const buildApiUrl = (params: FetchParams, isCountQuery = false): string => {
   const url = new URL(endpointTransactions);
   const queryParams = new URLSearchParams();
 
-  if (params.limit !== undefined) {
-    queryParams.append("limit", params.limit.toString());
+  if (isCountQuery) {
+    queryParams.append("field", "idTransaction::COUNT");
+  } else {
+    if (params.limit !== undefined) {
+      queryParams.append("limit", params.limit.toString());
+    }
+    if (params.offset !== undefined) {
+      queryParams.append("offset", params.offset.toString());
+    }
   }
-  if (params.offset !== undefined) {
-    queryParams.append("offset", params.offset.toString());
-  }
-  if (params.orderBy) {
+
+  if (params.orderBy && !isCountQuery) {
     queryParams.append("sort", params.orderBy);
   }
 
@@ -67,11 +74,39 @@ const buildApiUrl = (params: FetchParams): string => {
   return `${url.toString()}?${queryParams.toString()}`;
 };
 
+export const fetchTransactionsCount = createAsyncThunk(
+  "transactions/fetchTransactionsCount",
+  async (params: FetchParams = {}, { rejectWithValue }) => {
+    try {
+      const fullUrl = buildApiUrl(params, true);
+      const response = await fetch(fullUrl, {
+        headers: {
+          Authorization: import.meta.env.VITE_API_TOKEN,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        const errorMessage = errorData.headerStatus?.description || "Error en la API";
+        return rejectWithValue(errorMessage);
+      }
+
+      const result = await response.json();
+
+      const total = Array.isArray(result.data) && result.data.length > 0 ? result.data[0] : 0;
+      return total;
+    } catch (error) {
+      return rejectWithValue((error as Error).message);
+    }
+  },
+);
+
 export const fetchTransactions = createAsyncThunk(
   "transactions/fetchTransactions",
   async (params: FetchParams = {}, { rejectWithValue }) => {
     try {
-      const fullUrl = buildApiUrl(params);
+      const fullUrl = buildApiUrl(params, false);
       const response = await fetch(fullUrl, {
         headers: {
           Authorization: import.meta.env.VITE_API_TOKEN,
@@ -88,7 +123,6 @@ export const fetchTransactions = createAsyncThunk(
       const result = await response.json();
       return {
         data: Array.isArray(result.data) ? result.data : [],
-        total: result.total || initialState.total,
       };
     } catch (error) {
       return rejectWithValue((error as Error).message);
@@ -109,6 +143,7 @@ const transactionsSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+
       .addCase(fetchTransactions.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -116,10 +151,21 @@ const transactionsSlice = createSlice({
       .addCase(fetchTransactions.fulfilled, (state, action) => {
         state.loading = false;
         state.data = action.payload.data;
-        state.total = action.payload.total;
       })
       .addCase(fetchTransactions.rejected, (state, action) => {
         state.loading = false;
+        state.error = action.payload as string;
+      })
+
+      .addCase(fetchTransactionsCount.pending, (state) => {
+        state.loadingCount = true;
+      })
+      .addCase(fetchTransactionsCount.fulfilled, (state, action) => {
+        state.loadingCount = false;
+        state.total = action.payload;
+      })
+      .addCase(fetchTransactionsCount.rejected, (state, action) => {
+        state.loadingCount = false;
         state.error = action.payload as string;
       });
   },
