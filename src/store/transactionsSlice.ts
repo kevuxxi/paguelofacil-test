@@ -1,5 +1,6 @@
 import { Dayjs } from "dayjs";
 
+import { endpointTransactions } from "@/config";
 import { createAsyncThunk, createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 export interface FetchParams {
@@ -31,7 +32,7 @@ const initialState: TransactionsState = {
 };
 
 const buildApiUrl = (params: FetchParams): string => {
-  const url = new URL(import.meta.env.VITE_API_URL);
+  const url = new URL(endpointTransactions);
   const queryParams = new URLSearchParams();
 
   if (params.limit !== undefined) {

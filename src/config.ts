@@ -15,3 +15,6 @@ export const DEFAULTS = {
   },
   transitionDuration: 150,
 };
+
+export const urlBase = "https://sandbox.paguelofacil.com/PFManagementServices/api/v1";
+export const endpointTransactions = `${urlBase}/MerchantTransactions`;
