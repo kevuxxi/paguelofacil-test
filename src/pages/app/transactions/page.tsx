@@ -1,50 +1,104 @@
 import { AppDispatch, RootState } from "../../../store/store";
-import { fetchTransactions, fetchTransactionsCount, setFilter, setOrderBy } from "../../../store/transactionsSlice";
+import {
+  fetchTransactions,
+  fetchTransactionsCount,
+  setFieldFilters,
+  setOrderBy,
+} from "../../../store/transactionsSlice";
 import dayjs, { Dayjs } from "dayjs";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import React from "react";
 import { useDispatch, useSelector } from "react-redux";
 
-import { Box, Card, CardContent, Grid, MenuItem, Select, Slider, TextField, Typography } from "@mui/material";
+import ClearIcon from "@mui/icons-material/Clear";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import FilterListIcon from "@mui/icons-material/FilterList";
+import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Box,
+  Card,
+  CardContent,
+  Chip,
+  FormControl,
+  Grid,
+  InputLabel,
+  MenuItem,
+  Select,
+  Slider,
+  TextField,
+  Typography,
+} from "@mui/material";
 import { DataGrid, GridPaginationModel, GridSortModel } from "@mui/x-data-grid";
 import { DatePicker, LocalizationProvider } from "@mui/x-date-pickers";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 
-const useDebounce = (value: string, delay: number) => {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-  return debouncedValue;
-};
-
 const sortOptions = [
-  { column: "dateTms", label: "Latest date" },
-  { column: "-dateTms", label: "Recent date" },
-  { column: "codOper", label: "Operation code" },
-  { column: "status", label: "Status" },
-  { column: "email", label: "Email" },
-  { column: "-amount", label: "Higher amount" },
-  { column: "amount", label: "Lower amount" },
+  { column: "-dateTms", label: "Fecha más reciente" },
+  { column: "dateTms", label: "Fecha más antigua" },
+  { column: "codOper", label: "Código de operación (A-Z)" },
+  { column: "-codOper", label: "Código de operación (Z-A)" },
+  { column: "status", label: "Estado (A-Z)" },
+  { column: "-status", label: "Estado (Z-A)" },
+  { column: "email", label: "Email (A-Z)" },
+  { column: "-email", label: "Email (Z-A)" },
+  { column: "-amount", label: "Monto mayor a menor" },
+  { column: "amount", label: "Monto menor a mayor" },
 ];
+
+const fieldFilterOptions = [
+  { field: "codOper", label: "Código de Operación" },
+  { field: "email", label: "Email" },
+  { field: "cardType", label: "Tipo de Tarjeta" },
+  { field: "cardholderFullName", label: "Nombre del Titular" },
+  { field: "merchantName", label: "Nombre del Comercio" },
+  { field: "status", label: "Estado" },
+  { field: "displayCardNum", label: "Últimos 4 Dígitos" },
+  { field: "address", label: "Dirección" },
+  { field: "amount", label: "Monto" },
+];
+
+const statusOptions = [
+  { value: "1", label: "Aprobado" },
+  { value: "0", label: "Denegado" },
+  { value: "-1", label: "Pendiente" },
+];
+
+interface FieldFilter {
+  field: string;
+  value: string;
+  id: string;
+}
 
 const TransactionsTable = () => {
   const dispatch = useDispatch<AppDispatch>();
-  const { data, loading, error, filter, total, orderBy, loadingCount } = useSelector(
-    (state: RootState) => state.transactions,
-  );
+  const {
+    data,
+    loading,
+    error,
+    total,
+    orderBy,
+    loadingCount,
+    fieldFilters = [],
+  } = useSelector((state: RootState) => state.transactions);
 
-  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize: 10 });
-  const [amountRange, setAmountRange] = useState<[number, number]>([0, 10000]);
+  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
+    page: 0,
+    pageSize: 10,
+  });
+  const [amountRange, setAmountRange] = useState<[number, number]>([0, 100000]);
   const [startDate, setStartDate] = useState<Dayjs | null>(null);
   const [endDate, setEndDate] = useState<Dayjs | null>(null);
 
-  const [localFilter, setLocalFilter] = useState(filter);
-  const debouncedFilter = useDebounce(localFilter, 500);
+  const [selectedField, setSelectedField] = useState<string>("");
+  const [fieldValue, setFieldValue] = useState<string>("");
+
+  const [localAmountRange, setLocalAmountRange] = useState<[number, number]>([0, 100000]);
+  const [localStartDate, setLocalStartDate] = useState<Dayjs | null>(null);
+  const [localEndDate, setLocalEndDate] = useState<Dayjs | null>(null);
+
+  const currentFieldFilters = fieldFilters;
 
   const rows = useMemo(() => (Array.isArray(data) ? data : []), [data]);
 
@@ -60,61 +114,72 @@ const TransactionsTable = () => {
 
   const columns = useMemo(
     () => [
-      { field: "codOper", headerName: "Código", width: 180 },
+      { field: "codOper", headerName: "Código de Operación", flex: 1.5 },
       {
         field: "amount",
         headerName: "Monto",
-        width: 120,
+        flex: 1,
         valueGetter: (value: number) => {
-          return new Intl.NumberFormat("es-AR", {
-            style: "currency",
-            currency: "USD",
-          }).format(value);
+          if (typeof value === "number") {
+            return new Intl.NumberFormat("es-AR", {
+              style: "currency",
+              currency: "USD",
+            }).format(value);
+          }
+          return value || "";
         },
       },
-      { field: "cardType", headerName: "Tipo de Tarjeta", width: 150 },
-      { field: "displayCardNum", headerName: "Últimos 4 Dígitos", width: 150 },
-      { field: "cardholderFullName", headerName: "Nombre Titular", width: 200 },
-      { field: "email", headerName: "Email", width: 200 },
-      { field: "address", headerName: "Dirección", width: 250 },
-      { field: "merchantName", headerName: "Nombre del Comercio", width: 200 },
+      { field: "cardType", headerName: "Tipo de Tarjeta", flex: 1.2 },
+      { field: "displayCardNum", headerName: "Últimos 4 Dígitos", flex: 1.2 },
+      { field: "cardholderFullName", headerName: "Nombre Titular", flex: 1.8 },
+      { field: "email", headerName: "Email", flex: 2 },
+      { field: "address", headerName: "Dirección", flex: 2 },
+      { field: "merchantName", headerName: "Nombre del Comercio", flex: 1.8 },
       {
         field: "status",
         headerName: "Estado",
-        width: 120,
-        valueGetter: (value: number) => {
-          switch (value) {
-            case 1:
-              return "Aprobado";
-            case 0:
-              return "Denegado";
-            default:
-              return "Pendiente";
+        flex: 1,
+        valueGetter: (value: any) => {
+          if (typeof value === "string") {
+            switch (value.toLowerCase()) {
+              case "approved":
+              case "aprobado":
+                return "Aprobado";
+              case "denied":
+              case "denegado":
+                return "Denegado";
+              case "pending":
+              case "pendiente":
+                return "Pendiente";
+              default:
+                return value;
+            }
           }
+          if (typeof value === "number") {
+            switch (value) {
+              case 1:
+                return "Aprobado";
+              case 0:
+                return "Denegado";
+              default:
+                return "Pendiente";
+            }
+          }
+          return value || "Desconocido";
         },
       },
       {
         field: "dateTms",
         headerName: "Fecha de Transacción",
-        width: 200,
+        flex: 1.8,
         valueGetter: (value: string) => {
+          if (!value) return "";
           const date = dayjs(value);
-          return date.isValid() ? date.format("DD/MM/YYYY HH:mm:ss") : "";
+          return date.isValid() ? date.format("DD/MM/YYYY HH:mm:ss") : value;
         },
       },
     ],
     [],
-  );
-
-  const createQueryParams = useCallback(
-    () => ({
-      filter,
-      orderBy,
-      amountRange,
-      startDate,
-      endDate,
-    }),
-    [filter, orderBy, amountRange, startDate, endDate],
   );
 
   const handlePageChange = useCallback((newModel: GridPaginationModel) => {
@@ -139,8 +204,10 @@ const TransactionsTable = () => {
   const handleDateChange = useCallback(
     (type: "start" | "end") => (newValue: Dayjs | null) => {
       if (type === "start") {
+        setLocalStartDate(newValue);
         setStartDate(newValue);
       } else {
+        setLocalEndDate(newValue);
         setEndDate(newValue);
       }
       setPaginationModel((prev) => ({ ...prev, page: 0 }));
@@ -148,23 +215,60 @@ const TransactionsTable = () => {
     [],
   );
 
-  const handleAmountChange = useCallback((_: Event, newValue: number | number[]) => {
-    setAmountRange(newValue as [number, number]);
+  const handleAmountChange = useCallback((_: React.SyntheticEvent | Event, newValue: number | number[]) => {
+    const range = newValue as [number, number];
+    setLocalAmountRange(range);
   }, []);
 
-  const handleAmountChangeCommitted = useCallback(() => {
+  const handleAmountChangeCommitted = useCallback((_: React.SyntheticEvent | Event, newValue: number | number[]) => {
+    const range = newValue as [number, number];
+    setAmountRange(range);
     setPaginationModel((prev) => ({ ...prev, page: 0 }));
   }, []);
 
-  useEffect(() => {
-    if (debouncedFilter !== filter) {
-      dispatch(setFilter(debouncedFilter));
+  const handleAddFieldFilter = useCallback(() => {
+    if (selectedField && fieldValue.trim()) {
+      const newFilter: FieldFilter = {
+        field: selectedField,
+        value: fieldValue.trim(),
+        id: `${selectedField}-${Date.now()}`,
+      };
+
+      dispatch(setFieldFilters([...currentFieldFilters, newFilter]));
       setPaginationModel((prev) => ({ ...prev, page: 0 }));
+
+      setSelectedField("");
+      setFieldValue("");
     }
-  }, [debouncedFilter, filter, dispatch]);
+  }, [selectedField, fieldValue, currentFieldFilters, dispatch]);
+
+  const handleRemoveFieldFilter = useCallback(
+    (filterId: string) => {
+      const updatedFilters = currentFieldFilters.filter((f) => f.id !== filterId);
+      dispatch(setFieldFilters(updatedFilters));
+      setPaginationModel((prev) => ({ ...prev, page: 0 }));
+    },
+    [currentFieldFilters, dispatch],
+  );
+
+  const handleFieldValueKeyPress = useCallback(
+    (event: React.KeyboardEvent) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        handleAddFieldFilter();
+      }
+    },
+    [handleAddFieldFilter],
+  );
 
   useEffect(() => {
-    const baseParams = createQueryParams();
+    const baseParams = {
+      orderBy,
+      amountRange,
+      startDate,
+      endDate,
+      fieldFilters: currentFieldFilters,
+    };
 
     const dataParams = {
       ...baseParams,
@@ -173,9 +277,8 @@ const TransactionsTable = () => {
     };
 
     dispatch(fetchTransactions(dataParams));
-
     dispatch(fetchTransactionsCount(baseParams));
-  }, [dispatch, paginationModel, createQueryParams]);
+  }, [dispatch, paginationModel, orderBy, amountRange, startDate, endDate, currentFieldFilters]);
 
   if (error) {
     return (
@@ -194,68 +297,175 @@ const TransactionsTable = () => {
     );
   }
 
+  const getFieldLabel = (field: string) => {
+    const option = fieldFilterOptions.find((opt) => opt.field === field);
+    return option ? option.label : field;
+  };
+
+  const formatFilterValue = (field: string, value: string) => {
+    if (field === "status") {
+      const statusOption = statusOptions.find((opt) => opt.value === value);
+      return statusOption ? statusOption.label : value;
+    }
+    return value;
+  };
+
   return (
     <Box sx={{ height: 650, width: "100%" }}>
-      <DataGrid
-        rows={rows}
-        columns={columns}
-        getRowId={(row) => row.codOper || row.idTransaction}
-        paginationMode="server"
-        sortingMode="server"
-        rowCount={total}
-        loading={loading || loadingCount}
-        pageSizeOptions={[5, 10, 20]}
-        onPaginationModelChange={handlePageChange}
-        onSortModelChange={handleSortChange}
-        paginationModel={paginationModel}
-        sortModel={sortModel}
-        keepNonExistentRowsSelected={false}
-        disableRowSelectionOnClick={true}
-        slots={{
-          toolbar: () => (
-            <Box sx={{ display: "flex", gap: 2, p: 1, flexWrap: "wrap", alignItems: "center" }}>
-              <Select size="small" value={orderBy} onChange={(e) => dispatch(setOrderBy(e.target.value))}>
+      <Box sx={{ p: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 2,
+            mb: 2,
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <Box sx={{ minWidth: 150, flexGrow: 1 }}>
+            <FormControl fullWidth size="small">
+              <InputLabel id="order-by-label">Ordenar por</InputLabel>
+              <Select
+                labelId="order-by-label"
+                value={orderBy}
+                label="Ordenar por"
+                onChange={(e) => dispatch(setOrderBy(e.target.value))}
+              >
                 {sortOptions.map((opt) => (
                   <MenuItem key={opt.column} value={opt.column}>
                     {opt.label}
                   </MenuItem>
                 ))}
               </Select>
-              <TextField
-                size="small"
-                value={localFilter}
-                onChange={(e) => setLocalFilter(e.target.value)}
-                placeholder="Buscar..."
-              />
-              <Box sx={{ width: 200, px: 1 }}>
-                <Typography variant="caption" gutterBottom>
-                  Monto: ${amountRange[0]} - ${amountRange[1]}
-                </Typography>
-                <Slider
-                  value={amountRange}
-                  onChange={handleAmountChange}
-                  onChangeCommitted={handleAmountChangeCommitted}
-                  min={0}
-                  max={10000}
-                  valueLabelDisplay="auto"
-                />
-              </Box>
-              <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
-                <DatePicker
-                  label="Fecha de inicio"
-                  value={startDate}
-                  onChange={handleDateChange("start")}
-                  slotProps={{ textField: { size: "small" } }}
-                />
-                <DatePicker
-                  label="Fecha de fin"
-                  value={endDate}
-                  onChange={handleDateChange("end")}
-                  slotProps={{ textField: { size: "small" } }}
-                />
-              </LocalizationProvider>
+            </FormControl>
+          </Box>
+          <Box sx={{ width: { xs: "100%", sm: 200 }, px: 1, flexGrow: 1 }}>
+            <Typography variant="caption" gutterBottom>
+              Monto: ${localAmountRange[0].toLocaleString()} - ${localAmountRange[1].toLocaleString()}
+            </Typography>
+            <Slider
+              value={localAmountRange}
+              onChange={handleAmountChange}
+              onChangeCommitted={handleAmountChangeCommitted}
+              min={0}
+              max={100000}
+              step={1000}
+              valueLabelDisplay="auto"
+              valueLabelFormat={(value) => `${value.toLocaleString()}`}
+            />
+          </Box>
+          <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
+            <DatePicker
+              label="Fecha de inicio"
+              value={localStartDate}
+              onChange={handleDateChange("start")}
+              slotProps={{ textField: { size: "small", sx: { flexGrow: 1 } } }}
+            />
+            <DatePicker
+              label="Fecha de fin"
+              value={localEndDate}
+              onChange={handleDateChange("end")}
+              slotProps={{ textField: { size: "small", sx: { flexGrow: 1 } } }}
+            />
+          </LocalizationProvider>
+        </Box>
+        <Accordion>
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <FilterListIcon />
+              <Typography variant="subtitle2">Filtros por Campo ({currentFieldFilters.length})</Typography>
             </Box>
-          ),
+          </AccordionSummary>
+          <AccordionDetails>
+            <Box sx={{ display: "flex", gap: 2, mb: 2, alignItems: "center", flexWrap: "wrap" }}>
+              <FormControl size="small" sx={{ minWidth: 200, flexGrow: 1 }}>
+                <InputLabel>Campo</InputLabel>
+                <Select value={selectedField} onChange={(e) => setSelectedField(e.target.value)} label="Campo">
+                  {fieldFilterOptions.map((option) => (
+                    <MenuItem key={option.field} value={option.field}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              {selectedField === "status" ? (
+                <FormControl size="small" sx={{ minWidth: 150, flexGrow: 1 }}>
+                  <InputLabel>Estado</InputLabel>
+                  <Select value={fieldValue} onChange={(e) => setFieldValue(e.target.value)} label="Estado">
+                    {statusOptions.map((option) => (
+                      <MenuItem key={option.value} value={option.value}>
+                        {option.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              ) : (
+                <TextField
+                  size="small"
+                  value={fieldValue}
+                  onChange={(e) => setFieldValue(e.target.value)}
+                  onKeyDown={handleFieldValueKeyPress}
+                  placeholder="Valor del filtro"
+                  disabled={!selectedField}
+                  sx={{ minWidth: 200, flexGrow: 1 }}
+                  variant="outlined"
+                />
+              )}
+              <button
+                onClick={handleAddFieldFilter}
+                disabled={!selectedField || !fieldValue.trim()}
+                style={{
+                  padding: "8px 16px",
+                  backgroundColor: "#c924a1",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  cursor: !selectedField || !fieldValue.trim() ? "not-allowed" : "pointer",
+                }}
+              >
+                Agregar Filtro
+              </button>
+            </Box>
+            {currentFieldFilters.length > 0 && (
+              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                {currentFieldFilters.map((fieldFilter) => (
+                  <Chip
+                    key={fieldFilter.id}
+                    label={`${getFieldLabel(fieldFilter.field)}: ${formatFilterValue(fieldFilter.field, fieldFilter.value)}`}
+                    onDelete={() => handleRemoveFieldFilter(fieldFilter.id)}
+                    deleteIcon={<ClearIcon />}
+                    color="primary"
+                    variant="outlined"
+                    size="small"
+                  />
+                ))}
+              </Box>
+            )}
+          </AccordionDetails>
+        </Accordion>
+      </Box>
+      <DataGrid
+        rows={rows}
+        columns={columns}
+        getRowId={(row) => row.codOper || row.idTransaction || row.id || Math.random().toString()}
+        paginationMode="server"
+        sortingMode="server"
+        rowCount={total}
+        loading={loading || loadingCount}
+        pageSizeOptions={[5, 10, 20, 50]}
+        onPaginationModelChange={handlePageChange}
+        onSortModelChange={handleSortChange}
+        paginationModel={paginationModel}
+        sortModel={sortModel}
+        keepNonExistentRowsSelected={false}
+        disableRowSelectionOnClick={true}
+        autoHeight={false}
+        sx={{
+          height: 400,
+          "& .MuiDataGrid-row:hover": {
+            backgroundColor: "rgba(0, 0, 0, 0.04)",
+          },
         }}
         localeText={{
           toolbarDensity: "Densidad",
