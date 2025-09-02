@@ -14,7 +14,8 @@ export interface FetchParams {
   limit?: number;
   offset?: number;
   orderBy?: string;
-  amountRange?: [number, number];
+  minAmount?: number;
+  maxAmount?: number;
   startDate?: Dayjs | null;
   endDate?: Dayjs | null;
   fieldFilters?: FieldFilter[];
@@ -58,8 +59,12 @@ const buildApiUrl = (params: FetchParams, isCountQuery = false): string => {
   if (params.fieldFilters && params.fieldFilters.length > 0) {
     params.fieldFilters.forEach((f) => {
       if (f.field && f.value && f.value.trim()) {
-        const val = `%${f.value.trim()}%`; // parcial
-        conditionalParams.push(`${f.field}$lk${val}`); // $lk = like
+        if (f.field === "status") {
+          conditionalParams.push(`${f.field}$eq${f.value.trim()}`);
+        } else {
+          const val = `%${f.value.trim()}%`;
+          conditionalParams.push(`${f.field}$lk${val}`);
+        }
       }
     });
   }
@@ -70,9 +75,12 @@ const buildApiUrl = (params: FetchParams, isCountQuery = false): string => {
     conditionalParams.push(`dateTms$bt${start}T00:00:00::${end}T23:59:59`);
   }
 
-  if (params.amountRange) {
-    const [min, max] = params.amountRange;
-    conditionalParams.push(`amount$bt${min}::${max}`);
+  if (params.minAmount !== undefined && params.maxAmount !== undefined) {
+    conditionalParams.push(`amount$bt${params.minAmount}::${params.maxAmount}`);
+  } else if (params.minAmount !== undefined) {
+    conditionalParams.push(`amount$ge${params.minAmount}`);
+  } else if (params.maxAmount !== undefined) {
+    conditionalParams.push(`amount$le${params.maxAmount}`);
   }
 
   if (conditionalParams.length > 0) queryParams.append("conditional", conditionalParams.join("|"));
@@ -145,6 +153,9 @@ const transactionsSlice = createSlice({
     setFieldFilters(state, action: PayloadAction<FieldFilter[]>) {
       state.fieldFilters = action.payload;
     },
+    clearAllFilters(state) {
+      state.fieldFilters = [];
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -176,5 +187,5 @@ const transactionsSlice = createSlice({
   },
 });
 
-export const { setOrderBy, setFieldFilters } = transactionsSlice.actions;
+export const { setOrderBy, setFieldFilters, clearAllFilters } = transactionsSlice.actions;
 export default transactionsSlice.reducer;

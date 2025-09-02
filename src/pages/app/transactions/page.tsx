@@ -1,5 +1,6 @@
 import { AppDispatch, RootState } from "../../../store/store";
 import {
+  clearAllFilters,
   fetchTransactions,
   fetchTransactionsCount,
   setFieldFilters,
@@ -11,6 +12,7 @@ import React from "react";
 import { useDispatch, useSelector } from "react-redux";
 
 import ClearIcon from "@mui/icons-material/Clear";
+import ClearAllIcon from "@mui/icons-material/ClearAll";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import {
@@ -18,6 +20,7 @@ import {
   AccordionDetails,
   AccordionSummary,
   Box,
+  Button,
   Card,
   CardContent,
   Chip,
@@ -26,7 +29,6 @@ import {
   InputLabel,
   MenuItem,
   Select,
-  Slider,
   TextField,
   Typography,
 } from "@mui/material";
@@ -56,7 +58,6 @@ const fieldFilterOptions = [
   { field: "status", label: "Estado" },
   { field: "displayCardNum", label: "Últimos 4 Dígitos" },
   { field: "address", label: "Dirección" },
-  { field: "amount", label: "Monto" },
 ];
 
 const statusOptions = [
@@ -87,14 +88,14 @@ const TransactionsTable = () => {
     page: 0,
     pageSize: 10,
   });
-  const [amountRange, setAmountRange] = useState<[number, number]>([0, 100000]);
+  const [minAmount, setMinAmount] = useState<string>("");
+  const [maxAmount, setMaxAmount] = useState<string>("");
   const [startDate, setStartDate] = useState<Dayjs | null>(null);
   const [endDate, setEndDate] = useState<Dayjs | null>(null);
 
   const [selectedField, setSelectedField] = useState<string>("");
   const [fieldValue, setFieldValue] = useState<string>("");
 
-  const [localAmountRange, setLocalAmountRange] = useState<[number, number]>([0, 100000]);
   const [localStartDate, setLocalStartDate] = useState<Dayjs | null>(null);
   const [localEndDate, setLocalEndDate] = useState<Dayjs | null>(null);
 
@@ -215,15 +216,22 @@ const TransactionsTable = () => {
     [],
   );
 
-  const handleAmountChange = useCallback((_: React.SyntheticEvent | Event, newValue: number | number[]) => {
-    const range = newValue as [number, number];
-    setLocalAmountRange(range);
+  const handleMinAmountChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+
+    if (value === "" || /^\d*\.?\d*$/.test(value)) {
+      setMinAmount(value);
+      setPaginationModel((prev) => ({ ...prev, page: 0 }));
+    }
   }, []);
 
-  const handleAmountChangeCommitted = useCallback((_: React.SyntheticEvent | Event, newValue: number | number[]) => {
-    const range = newValue as [number, number];
-    setAmountRange(range);
-    setPaginationModel((prev) => ({ ...prev, page: 0 }));
+  const handleMaxAmountChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+    // Permitir solo números y punto decimal
+    if (value === "" || /^\d*\.?\d*$/.test(value)) {
+      setMaxAmount(value);
+      setPaginationModel((prev) => ({ ...prev, page: 0 }));
+    }
   }, []);
 
   const handleAddFieldFilter = useCallback(() => {
@@ -251,6 +259,17 @@ const TransactionsTable = () => {
     [currentFieldFilters, dispatch],
   );
 
+  const handleClearAllFilters = useCallback(() => {
+    dispatch(clearAllFilters());
+    setMinAmount("");
+    setMaxAmount("");
+    setStartDate(null);
+    setEndDate(null);
+    setLocalStartDate(null);
+    setLocalEndDate(null);
+    setPaginationModel((prev) => ({ ...prev, page: 0 }));
+  }, [dispatch]);
+
   const handleFieldValueKeyPress = useCallback(
     (event: React.KeyboardEvent) => {
       if (event.key === "Enter") {
@@ -261,10 +280,20 @@ const TransactionsTable = () => {
     [handleAddFieldFilter],
   );
 
+  const minAmountValue = minAmount ? parseFloat(minAmount) : undefined;
+  const maxAmountValue = maxAmount ? parseFloat(maxAmount) : undefined;
+
+  const hasActiveFilters = useMemo(() => {
+    return (
+      currentFieldFilters.length > 0 || minAmount !== "" || maxAmount !== "" || startDate !== null || endDate !== null
+    );
+  }, [currentFieldFilters, minAmount, maxAmount, startDate, endDate]);
+
   useEffect(() => {
     const baseParams = {
       orderBy,
-      amountRange,
+      minAmount: minAmountValue,
+      maxAmount: maxAmountValue,
       startDate,
       endDate,
       fieldFilters: currentFieldFilters,
@@ -278,7 +307,7 @@ const TransactionsTable = () => {
 
     dispatch(fetchTransactions(dataParams));
     dispatch(fetchTransactionsCount(baseParams));
-  }, [dispatch, paginationModel, orderBy, amountRange, startDate, endDate, currentFieldFilters]);
+  }, [dispatch, paginationModel, orderBy, minAmountValue, maxAmountValue, startDate, endDate, currentFieldFilters]);
 
   if (error) {
     return (
@@ -340,21 +369,36 @@ const TransactionsTable = () => {
               </Select>
             </FormControl>
           </Box>
-          <Box sx={{ width: { xs: "100%", sm: 200 }, px: 1, flexGrow: 1 }}>
-            <Typography variant="caption" gutterBottom>
-              Monto: ${localAmountRange[0].toLocaleString()} - ${localAmountRange[1].toLocaleString()}
-            </Typography>
-            <Slider
-              value={localAmountRange}
-              onChange={handleAmountChange}
-              onChangeCommitted={handleAmountChangeCommitted}
-              min={0}
-              max={100000}
-              step={1000}
-              valueLabelDisplay="auto"
-              valueLabelFormat={(value) => `${value.toLocaleString()}`}
+
+          <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+            <TextField
+              size="small"
+              label="Monto mínimo"
+              value={minAmount}
+              onChange={handleMinAmountChange}
+              placeholder="0"
+              sx={{ width: 140 }}
+              type="text"
+              inputProps={{
+                inputMode: "decimal",
+                pattern: "[0-9]*\\.?[0-9]*",
+              }}
+            />
+            <TextField
+              size="small"
+              label="Monto máximo"
+              value={maxAmount}
+              onChange={handleMaxAmountChange}
+              placeholder="Sin límite"
+              sx={{ width: 140 }}
+              type="text"
+              inputProps={{
+                inputMode: "decimal",
+                pattern: "[0-9]*\\.?[0-9]*",
+              }}
             />
           </Box>
+
           <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="es">
             <DatePicker
               label="Fecha de inicio"
@@ -369,7 +413,18 @@ const TransactionsTable = () => {
               slotProps={{ textField: { size: "small", sx: { flexGrow: 1 } } }}
             />
           </LocalizationProvider>
+
+          {hasActiveFilters && (
+            <Button
+              variant="outlined"
+              startIcon={<ClearAllIcon />}
+              onClick={handleClearAllFilters}
+              color="secondary"
+              size="small"
+            ></Button>
+          )}
         </Box>
+
         <Accordion>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -412,20 +467,19 @@ const TransactionsTable = () => {
                   variant="outlined"
                 />
               )}
-              <button
+              <Button
+                variant="contained"
                 onClick={handleAddFieldFilter}
                 disabled={!selectedField || !fieldValue.trim()}
-                style={{
-                  padding: "8px 16px",
+                sx={{
                   backgroundColor: "#c924a1",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  cursor: !selectedField || !fieldValue.trim() ? "not-allowed" : "pointer",
+                  "&:hover": {
+                    backgroundColor: "#a91c85",
+                  },
                 }}
               >
                 Agregar Filtro
-              </button>
+              </Button>
             </Box>
             {currentFieldFilters.length > 0 && (
               <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
